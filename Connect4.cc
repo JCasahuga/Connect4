@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <math.h>
 using namespace std;
 using namespace std::chrono;
 
@@ -14,6 +15,7 @@ int minVal = 0;
 
 int maxH = 0;
 int minH = 0;
+int totalNodes = 0;
 
 int selectedDepth = 6;
 bool pruning = true;
@@ -25,8 +27,6 @@ public:
     int id;
     int score;
 };
-
-// 7 * 6
 
 // Displays Board
 void displayGame(const int (&t)[42]) {
@@ -64,7 +64,7 @@ int checkState(const int (&cTable)[42]) {
         if (j == 4) return cTable[i];
     }
 
-    // Diagonal 1
+    // Diagonal 1 Win/Lose?
     for (int i = 0; i < 21; ++i) {
         int j = 8;
         if (i%7 < 4 && cTable[i] != 0)
@@ -72,7 +72,7 @@ int checkState(const int (&cTable)[42]) {
         if (j == 32) return cTable[i];
     }
 
-    // Diagonal 2 Wrong Left to Right
+    // Diagonal 2 Win/Lose?
     for (int i = 0; i < 21; ++i) {
         int j = 6;
         if (i%7 > 2 && cTable[i] != 0)
@@ -94,48 +94,49 @@ int checkState(const int (&cTable)[42]) {
 int heuristicState(const int (&cTable)[42]) {    
     int result = 0;
 
-    // Vertical Win/Lose?
+    // Vertical Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 7;
         if (cTable[i] != 0)
             while (j < 28 && cTable[i+j] == cTable[i]) j+=7;
-        if (cTable[i+j] == 0) result += cTable[i]*j/7;
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/7,2);
     }
     
-    // Horizontal Win/Lose?
+    // Horizontal Left To Connect
     for (int i = 0; i < 42; ++i) {
         int j = 1;
         if (i%7 < 4 && cTable[i] != 0)
             while (j < 4 && cTable[i+j] == cTable[i]) ++j;
-        if (cTable[i+j] == 0) result += cTable[i]*j;
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j, 2);
     }
 
-    // Diagonal 1
+    // Diagonal Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 8;
         if (i%7 < 4 && cTable[i] != 0)
             while (j < 32 && cTable[i+j] == cTable[i]) j+=8;
-        if (cTable[i+j] == 0) result += cTable[i]*j/8;
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/8,2);
     }
 
-    // Diagonal 2 Wrong Left to Right
+    // Diagonal 2 Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 6;
         if (i%7 > 2 && cTable[i] != 0)
             while (j < 24 && cTable[i+j] == cTable[i]) j+=6;
-        if (cTable[i+j] == 0) result += cTable[i]*j/6;
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/6,2);
     }
 
+    result /= 4;
     if (result < minH) minH = result;
     if (result > maxH) maxH = result;
-    //if (result > 0) return 0;
-    //if (result < -8) return -8;
+    if (result > 30) return 29;
+    if (result < -30) return -29;
+
     return result;
 }
 
 // Minimax
-Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int &totalNodes, int depth) {
-
+Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth) {
     // Checks Current State
     int s = checkState(cTable);
     if(s != 2) {
@@ -145,10 +146,9 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int &totalNodes
         else move.score = 0;
         return move;
     }
-    // 4 minim per vert + hor
+    // Depth Limit
     if (depth > selectedDepth) {
         Move move;
-        //move.score = cTurn;
         move.score = heuristicState(cTable);
         return move;
     }
@@ -162,15 +162,15 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int &totalNodes
             move.id = index;
             cTable[index+cStackSize[index]] = cTurn;
             cStackSize[index] += 7;
-            move.score = minimax(-cTurn, cTable, cStackSize, totalNodes, depth+1).score;
+            move.score = minimax(-cTurn, cTable, cStackSize, depth+1).score;
             moves.push_back(move);
             cStackSize[index] -= 7;
             cTable[index+cStackSize[index]] = 0;
-            //if (depth == 0) cout << index << " score " << move.score << endl;
-            if (pruning) {
+            if (depth == 0) cout << index << " scores " << move.score << endl; 
+            /*if (pruning) {
                 bool winOrLose = (move.score == maxVal && cTurn) || (move.score == minVal && cTurn == -1);
                 if(winOrLose) return move;
-            }
+            }*/
             ++totalNodes;
         }
     }
@@ -216,17 +216,9 @@ void game() {
     // Turn 1 = CPU / Turn -1 = Human
     if (turn == 1){
         int offset = (rand()%2);
-        perm[offset] = lastMove;
-        if (offset == 1) {
-            offset = (rand()%2);
-            if (offset == 1) {
-                perm[0] = (lastMove+6)%7;
-                perm[2] = (lastMove+1)%7;
-            } else {
-                perm[2] = (lastMove+6)%7;
-                perm[0] = (lastMove+1)%7;
-            }
-        }
+        perm[0] = lastMove;
+        perm[1] = (lastMove+6)%7;
+        perm[2] = (lastMove+1)%7;
         perm[3] = (lastMove+5)%7;
         perm[4] = (lastMove+2)%7;
         perm[5] = (lastMove+4)%7;
@@ -235,11 +227,11 @@ void game() {
         for (int i = 0; i <7; ++i) cout << perm[i];
         cout << endl;
         cout << "CPU PLAY:" << endl;
-        int totalNodes = 0;
+        totalNodes = 0;
         maxH = -100;
         minH = 100;
         auto start = high_resolution_clock::now();
-        int id = minimax(turn, table, stackSize, totalNodes, 0).id;
+        int id = minimax(turn, table, stackSize, 0).id;
         table[id + stackSize[id]] = 1;
         stackSize[id] += 7;
         auto stop = high_resolution_clock::now();
