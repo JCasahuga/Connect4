@@ -9,7 +9,11 @@ using namespace std::chrono;
 int turn = 1;
 int table[42] = {};
 int stackSize[7] = {};
-int lastMove = 3;
+
+int pLMove = 3;
+int cLMove = 3;
+int distribution[7] = {0, 2, 4, 6, 4, 2, 0};
+
 int maxVal = 0;
 int minVal = 0;
 
@@ -17,7 +21,7 @@ int maxH = 0;
 int minH = 0;
 int totalNodes = 0;
 
-int selectedDepth = 6;
+int selectedDepth = 10;
 bool pruning = true;
 vector<int> perm = vector<int>(7);
 
@@ -97,33 +101,57 @@ int heuristicState(const int (&cTable)[42]) {
     // Vertical Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 7;
-        if (cTable[i] != 0)
+        bool fillable = true;
+        if (cTable[i] != 0) {
             while (j < 28 && cTable[i+j] == cTable[i]) j+=7;
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/7,2);
+            while (j < 28 && cTable[i+j] != 0) {
+                fillable = false;
+                j+=7;
+            }
+        }
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/7,2)*fillable;
     }
     
     // Horizontal Left To Connect
     for (int i = 0; i < 42; ++i) {
         int j = 1;
-        if (i%7 < 4 && cTable[i] != 0)
+        bool fillable = true;
+        if (i%7 < 4 && cTable[i] != 0) {
             while (j < 4 && cTable[i+j] == cTable[i]) ++j;
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j, 2);
+            while (j < 4 && cTable[i+j] != 0) {
+                fillable = false;
+                ++j;
+            }
+        }
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j, 2)*fillable;
     }
 
     // Diagonal Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 8;
-        if (i%7 < 4 && cTable[i] != 0)
+        bool fillable = true;
+        if (i%7 < 4 && cTable[i] != 0) {
             while (j < 32 && cTable[i+j] == cTable[i]) j+=8;
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/8,2);
+            while (j < 32 && cTable[i+j] != 0) {
+                fillable = false;
+                j+= 8;
+            }
+        }
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/8,2)*fillable;
     }
 
     // Diagonal 2 Left To Connect
     for (int i = 0; i < 21; ++i) {
         int j = 6;
-        if (i%7 > 2 && cTable[i] != 0)
+        bool fillable = true;
+        if (i%7 > 2 && cTable[i] != 0) {
             while (j < 24 && cTable[i+j] == cTable[i]) j+=6;
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/6,2);
+            while (j < 24 && cTable[i+j] != 0) {
+                fillable = false;
+                j+= 6;
+            }
+        }
+        if (cTable[i+j] == 0) result += pow(cTable[i]*j/6,2)*fillable;
     }
 
     result /= 4;
@@ -136,7 +164,7 @@ int heuristicState(const int (&cTable)[42]) {
 }
 
 // Minimax
-Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth) {
+Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int alpha, int beta) {
     // Checks Current State
     int s = checkState(cTable);
     if(s != 2) {
@@ -162,15 +190,21 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth) {
             move.id = index;
             cTable[index+cStackSize[index]] = cTurn;
             cStackSize[index] += 7;
-            move.score = minimax(-cTurn, cTable, cStackSize, depth+1).score;
+            move.score = minimax(-cTurn, cTable, cStackSize, depth+1, alpha, beta).score;
             moves.push_back(move);
             cStackSize[index] -= 7;
             cTable[index+cStackSize[index]] = 0;
-            if (depth == 0) cout << index << " scores " << move.score << endl; 
-            /*if (pruning) {
-                bool winOrLose = (move.score == maxVal && cTurn) || (move.score == minVal && cTurn == -1);
-                if(winOrLose) return move;
-            }*/
+            // Alpha-Beta Pruning
+            if (cTurn == 1) {
+                alpha = max(alpha, move.score);
+                if (beta <= alpha)
+                    break;
+            } else {
+                beta = min(beta, move.score);
+                if (beta <= alpha)
+                    break;
+            }
+            if (depth == 0) cout << index << " scores " << move.score << endl;
             ++totalNodes;
         }
     }
@@ -214,15 +248,25 @@ void game() {
         return;
     }
     // Turn 1 = CPU / Turn -1 = Human
-    if (turn == 1){
+    if (turn == 1) {
+        /*
+        int dist[7] = {};
+        pLMove = 0;
+        for (int i = 0; i < 7; ++i) {
+            int pDiff = 7 - abs(i - pLMove);
+            cout << pDiff << " " << endl;
+            dist[i] = pDiff + max(i - cLMove, 0) + distribution[i];
+            //cout << dist[i] << endl;
+        }*/
+        
         int offset = (rand()%2);
-        perm[0] = lastMove;
-        perm[1] = (lastMove+6)%7;
-        perm[2] = (lastMove+1)%7;
-        perm[3] = (lastMove+5)%7;
-        perm[4] = (lastMove+2)%7;
-        perm[5] = (lastMove+4)%7;
-        perm[6] = (lastMove+3)%7;
+        perm[0] = pLMove;
+        perm[1] = (pLMove+6)%7;
+        perm[2] = (pLMove+1)%7;
+        perm[3] = (pLMove+5)%7;
+        perm[4] = (pLMove+2)%7;
+        perm[5] = (pLMove+4)%7;
+        perm[6] = (pLMove+3)%7;
 
         for (int i = 0; i <7; ++i) cout << perm[i];
         cout << endl;
@@ -231,7 +275,7 @@ void game() {
         maxH = -100;
         minH = 100;
         auto start = high_resolution_clock::now();
-        int id = minimax(turn, table, stackSize, 0).id;
+        int id = minimax(turn, table, stackSize, 0, -300, 300).id;
         table[id + stackSize[id]] = 1;
         stackSize[id] += 7;
         auto stop = high_resolution_clock::now();
@@ -259,7 +303,7 @@ void game() {
             stackSize[m] += 7;
         }
         turn = 1;
-        lastMove = m;
+        pLMove = m;
         game();
     }
 }
