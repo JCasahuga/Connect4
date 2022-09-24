@@ -2,6 +2,7 @@
 #include <vector>
 #include <chrono>
 #include <math.h>
+#include <algorithm>
 using namespace std;
 using namespace std::chrono;
 
@@ -22,7 +23,9 @@ int minH = 0;
 int totalNodes = 0;
 
 int selectedDepth = 10;
-bool pruning = true;
+int maxDepth = selectedDepth;
+int movesPlayed = 0;
+
 vector<int> perm = vector<int>(7);
 
 // Move Properties: Position and Value of the Move
@@ -175,7 +178,7 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
         return move;
     }
     // Depth Limit
-    if (depth > selectedDepth) {
+    if (depth > maxDepth) {
         Move move;
         move.score = heuristicState(cTable);
         return move;
@@ -190,7 +193,9 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
             move.id = index;
             cTable[index+cStackSize[index]] = cTurn;
             cStackSize[index] += 7;
-            move.score = minimax(-cTurn, cTable, cStackSize, depth+1, alpha, beta).score;
+            int offset = 0;
+            //if (depth == 0 && i > 4) offset += 1;
+            move.score = minimax(-cTurn, cTable, cStackSize, depth+1+offset, alpha, beta).score;
             moves.push_back(move);
             cStackSize[index] -= 7;
             cTable[index+cStackSize[index]] = 0;
@@ -213,7 +218,7 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
     int totalMoves = moves.size();
     if(cTurn == 1){
         // Max
-        int bScore = -300;
+        int bScore = -1000;
         for(int i = 0; i < totalMoves; ++i) {
             if (moves[i].score > bScore) {
                 bMove = i;
@@ -222,7 +227,7 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
         }
     } else {
         // Min
-        int bScore = 300;
+        int bScore = 1000;
         for(int i = 0; i < totalMoves; ++i) {
             if (moves[i].score < bScore) {
                 bMove = i;
@@ -249,32 +254,24 @@ void game() {
     }
     // Turn 1 = CPU / Turn -1 = Human
     if (turn == 1) {
-        /*
-        int dist[7] = {};
-        pLMove = 0;
+        // Move Ordering
+        vector<pair<int,int>> dist = vector<pair<int,int>> (7);
         for (int i = 0; i < 7; ++i) {
             int pDiff = 7 - abs(i - pLMove);
-            cout << pDiff << " " << endl;
-            dist[i] = pDiff + max(i - cLMove, 0) + distribution[i];
-            //cout << dist[i] << endl;
-        }*/
-        
-        int offset = (rand()%2);
-        perm[0] = pLMove;
-        perm[1] = (pLMove+6)%7;
-        perm[2] = (pLMove+1)%7;
-        perm[3] = (pLMove+5)%7;
-        perm[4] = (pLMove+2)%7;
-        perm[5] = (pLMove+4)%7;
-        perm[6] = (pLMove+3)%7;
+            int cDiff = 7 - abs(i - cLMove);
+            dist[i] = make_pair(pDiff*3 + cDiff + distribution[i], i);
+        }
+        sort(dist.begin(), dist.end());
 
-        for (int i = 0; i <7; ++i) cout << perm[i];
-        cout << endl;
+        for (int i = 6; i >= 0; --i) perm[6-i] = dist[i].second;
+
         cout << "CPU PLAY:" << endl;
         totalNodes = 0;
         maxH = -100;
         minH = 100;
         auto start = high_resolution_clock::now();
+        maxDepth = selectedDepth * pow((1 + double(movesPlayed)/(pow(2,7)+pow(2,3))), 2);
+        cout << maxDepth << endl;
         int id = minimax(turn, table, stackSize, 0, -300, 300).id;
         table[id + stackSize[id]] = 1;
         stackSize[id] += 7;
@@ -286,6 +283,7 @@ void game() {
         cout << "Min = " << minH << endl;
         displayGame(table);
         turn = -1;
+        ++movesPlayed;
         game();
     } else {
         if(allEmpty) { 
@@ -304,6 +302,7 @@ void game() {
         }
         turn = 1;
         pLMove = m;
+        ++movesPlayed;
         game();
     }
 }
@@ -312,13 +311,10 @@ void game() {
 int main() {
     minVal = (-selectedDepth+2)*30;
     maxVal = (selectedDepth-1)*30;
-    cout << "Do you want Pruning Enabled?" << endl;
-    char p;
-    cin >> p;
-    if (p == 'N' || p == 'n') pruning = false;
     cout << "Do you want to start? Type Y to confirm or N to deny" << endl;
     char i;
     cin >> i;
     if (i == 'Y' || i == 'y') turn = -1;
+    
     game();
 }
