@@ -3,6 +3,7 @@
 #include <chrono>
 #include <math.h>
 #include <algorithm>
+#include <iomanip>
 using namespace std;
 using namespace std::chrono;
 
@@ -13,18 +14,27 @@ int stackSize[7] = {};
 
 int pLMove = 3;
 int cLMove = 3;
-int distribution[7] = {0, 2, 4, 6, 4, 2, 0};
+int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
+                        0, 2, 4, 6, 4, 2, 0,
+                        0, 3, 6, 8, 6, 3, 0,
+                        0, 3, 6, 8, 6, 3, 0,
+                        0, 2, 4, 6, 4, 2, 0,
+                        0, 1, 2, 4, 2, 1, 0,};
 
 int maxVal = 0;
 int minVal = 0;
 
-int maxH = 0;
-int minH = 0;
+//int maxH = 0;
+//int minH = 0;
 int totalNodes = 0;
 
 int selectedDepth = 10;
-int maxDepth = selectedDepth;
+int maxAllowedDepth = 0;
 int movesPlayed = 0;
+
+auto start = high_resolution_clock::now();
+int timeOutMicro = 1000000;
+bool timeOut;
 
 vector<int> perm = vector<int>(7);
 
@@ -98,7 +108,7 @@ int checkState(const int (&cTable)[42]) {
     return 0;
 }
 
-int heuristicState(const int (&cTable)[42]) {    
+int heuristicState(const int (&cTable)[42], int turn) {    
     int result = 0;
 
     // Vertical Left To Connect
@@ -112,7 +122,7 @@ int heuristicState(const int (&cTable)[42]) {
                 j+=7;
             }
         }
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/7,2)*fillable;
+        if (cTable[i+j] == 0) result += cTable[i]*pow(j/7, 2*(turn == cTable[i]))*fillable;
     }
     
     // Horizontal Left To Connect
@@ -126,7 +136,7 @@ int heuristicState(const int (&cTable)[42]) {
                 ++j;
             }
         }
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j, 2)*fillable;
+        if (cTable[i+j] == 0) result += cTable[i]*pow(j, 2*(turn == cTable[i]))*fillable;
     }
 
     // Diagonal Left To Connect
@@ -140,7 +150,7 @@ int heuristicState(const int (&cTable)[42]) {
                 j+= 8;
             }
         }
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/8,2)*fillable;
+        if (cTable[i+j] == 0) result += cTable[i]*pow(j/8, 2*(turn == cTable[i]))*fillable;
     }
 
     // Diagonal 2 Left To Connect
@@ -154,12 +164,12 @@ int heuristicState(const int (&cTable)[42]) {
                 j+= 6;
             }
         }
-        if (cTable[i+j] == 0) result += pow(cTable[i]*j/6,2)*fillable;
+        if (cTable[i+j] == 0) result += cTable[i]*pow(j/6, 2*(turn == cTable[i]))*fillable;
     }
 
     result /= 4;
-    if (result < minH) minH = result;
-    if (result > maxH) maxH = result;
+    //if (result < minH) minH = result;
+    //if (result > maxH) maxH = result;
     if (result > 30) return 29;
     if (result < -30) return -29;
 
@@ -168,6 +178,14 @@ int heuristicState(const int (&cTable)[42]) {
 
 // Minimax
 Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int alpha, int beta) {
+    // Checks Time Out
+    auto duration = duration_cast<microseconds>(high_resolution_clock::now() - start);;
+    if (duration.count() > timeOutMicro) {
+        timeOut = true;
+        Move move;
+        return move;
+    }
+
     // Checks Current State
     int s = checkState(cTable);
     if(s != 2) {
@@ -178,9 +196,9 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
         return move;
     }
     // Depth Limit
-    if (depth > maxDepth) {
+    if (depth > maxAllowedDepth) {
         Move move;
-        move.score = heuristicState(cTable);
+        move.score = heuristicState(cTable, -cTurn);
         return move;
     }
     // Moves Vector
@@ -209,7 +227,7 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
                 if (beta <= alpha)
                     break;
             }
-            if (depth == 0) cout << index << " scores " << move.score << endl;
+            //if (depth == 0) cout << index << " scores " << move.score << endl;
             ++totalNodes;
         }
     }
@@ -259,6 +277,7 @@ void game() {
         for (int i = 0; i < 7; ++i) {
             int pDiff = 7 - abs(i - pLMove);
             int cDiff = 7 - abs(i - cLMove);
+            int tVal = distribution[i+stackSize[i]]*5;
             dist[i] = make_pair(pDiff*3 + cDiff + distribution[i], i);
         }
         sort(dist.begin(), dist.end());
@@ -267,20 +286,31 @@ void game() {
 
         cout << "CPU PLAY:" << endl;
         totalNodes = 0;
-        maxH = -100;
-        minH = 100;
-        auto start = high_resolution_clock::now();
-        maxDepth = selectedDepth * pow((1 + double(movesPlayed)/(pow(2,7)+pow(2,3))), 2);
-        cout << maxDepth << endl;
-        int id = minimax(turn, table, stackSize, 0, -300, 300).id;
-        table[id + stackSize[id]] = 1;
-        stackSize[id] += 7;
+        //maxH = -100;
+        //minH = 100;
+        start = high_resolution_clock::now();
+
+        Move bM;
+        for (int i = 0; i < 42; ++i) {
+            maxAllowedDepth = i;
+            Move m = minimax(turn, table, stackSize, 0, -300, 300);
+            if (timeOut) break;
+            bM = m;
+        }
+
+        cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
+        if (bM.score > 0) cout << " ";
+        cout << (float(bM.score)/10) << endl;
+        timeOut = false;
+
+        table[bM.id + stackSize[bM.id]] = 1;
+        stackSize[bM.id] += 7;
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
-        cout << "Time Elapsed: " << float(duration.count()) / 1000 << " Miliseconds" << endl;
+        cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << endl;
         cout << "Nodes Explored: " << totalNodes << endl;
-        cout << "Max = " << maxH << endl;
-        cout << "Min = " << minH << endl;
+        //cout << "Max = " << maxH << endl;
+        //cout << "Min = " << minH << endl;
         displayGame(table);
         turn = -1;
         ++movesPlayed;
@@ -309,6 +339,7 @@ void game() {
 
 // Main
 int main() {
+    cout << setprecision(2) << fixed;
     minVal = (-selectedDepth+2)*30;
     maxVal = (selectedDepth-1)*30;
     cout << "Do you want to start? Type Y to confirm or N to deny" << endl;
