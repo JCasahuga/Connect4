@@ -19,22 +19,18 @@ int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
                         0, 3, 6, 8, 6, 3, 0,
                         0, 3, 6, 8, 6, 3, 0,
                         0, 2, 4, 6, 4, 2, 0,
-                        0, 1, 2, 4, 2, 1, 0,};
-
-int maxVal = 0;
-int minVal = 0;
-
-//int maxH = 0;
-//int minH = 0;
+                        0, 1, 2, 4, 2, 1, 0};
 int totalNodes = 0;
 
-int selectedDepth = 10;
 int maxAllowedDepth = 0;
 int movesPlayed = 0;
 
 auto start = high_resolution_clock::now();
 int timeOutMicro = 1000000;
 bool timeOut;
+
+int minH = 100;
+int maxH = -100;
 
 vector<int> perm = vector<int>(7);
 
@@ -113,65 +109,86 @@ int heuristicState(const int (&cTable)[42], int turn) {
 
     // Vertical Left To Connect
     for (int i = 0; i < 21; ++i) {
-        int j = 7;
+        int j = 0;
+        int chips = 0;
+        int type = 0;
         bool fillable = true;
-        if (cTable[i] != 0) {
-            while (j < 28 && cTable[i+j] == cTable[i]) j+=7;
-            while (j < 28 && cTable[i+j] != 0) {
-                fillable = false;
-                j+=7;
+        while (j < 28) {
+            if (cTable[i+j] != 0) {
+                if (type == 0) type = cTable[i+j];
+                else if (type != cTable[i+j]) fillable = false;
+                ++chips;
             }
+            j+=7;
         }
-        if (cTable[i+j] == 0) result += cTable[i]*pow(j/7, 2*(turn == cTable[i]))*fillable;
+        if (fillable) result += type*pow(type*chips,2);
     }
     
     // Horizontal Left To Connect
     for (int i = 0; i < 42; ++i) {
-        int j = 1;
+        int j = 0;
+        int chips = 0;
+        int type = 0;
         bool fillable = true;
-        if (i%7 < 4 && cTable[i] != 0) {
-            while (j < 4 && cTable[i+j] == cTable[i]) ++j;
-            while (j < 4 && cTable[i+j] != 0) {
-                fillable = false;
+        if (i%7 < 4) {
+            while (j < 4) {
+                if (cTable[i+j] != 0) {
+                    if (type == 0) type = cTable[i+j];
+                    else if (type != cTable[i+j]) fillable = false;
+                    ++chips;
+                }
                 ++j;
             }
         }
-        if (cTable[i+j] == 0) result += cTable[i]*pow(j, 2*(turn == cTable[i]))*fillable;
+        if (fillable) result += type*pow(type*chips,2);
     }
 
     // Diagonal Left To Connect
     for (int i = 0; i < 21; ++i) {
-        int j = 8;
+        int j = 0;
+        int chips = 0;
+        int type = 0;
         bool fillable = true;
-        if (i%7 < 4 && cTable[i] != 0) {
-            while (j < 32 && cTable[i+j] == cTable[i]) j+=8;
-            while (j < 32 && cTable[i+j] != 0) {
-                fillable = false;
-                j+= 8;
+        if (i%7 < 4) {
+            while (j < 32) {
+                if (cTable[i+j] != 0) {
+                    if (type == 0) type = cTable[i+j];
+                    else if (type != cTable[i+j]) fillable = false;
+                    ++chips;
+                }
+                j+=8;
             }
         }
-        if (cTable[i+j] == 0) result += cTable[i]*pow(j/8, 2*(turn == cTable[i]))*fillable;
+        if (fillable) result += type*pow(type*chips,2);
     }
 
     // Diagonal 2 Left To Connect
     for (int i = 0; i < 21; ++i) {
-        int j = 6;
+        int j = 0;
+        int chips = 0;
+        int type = 0;
         bool fillable = true;
-        if (i%7 > 2 && cTable[i] != 0) {
-            while (j < 24 && cTable[i+j] == cTable[i]) j+=6;
-            while (j < 24 && cTable[i+j] != 0) {
-                fillable = false;
-                j+= 6;
+        if (i%7 > 2) {
+            while (j < 24) {
+                if (cTable[i+j] != 0) {
+                    if (type == 0) type = cTable[i+j];
+                    else if (type != cTable[i+j]) fillable = false;
+                    ++chips;
+                }
+                j += 6;
             }
         }
-        if (cTable[i+j] == 0) result += cTable[i]*pow(j/6, 2*(turn == cTable[i]))*fillable;
+        if (fillable) result += type*pow(type*chips,2);
     }
 
-    result /= 4;
-    //if (result < minH) minH = result;
-    //if (result > maxH) maxH = result;
+    result /= 5;
+    
+    if (result < minH) minH = result;
+    if (result > maxH) maxH = result;
+
     if (result > 30) return 29;
     if (result < -30) return -29;
+
 
     return result;
 }
@@ -185,13 +202,12 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
         Move move;
         return move;
     }
-
     // Checks Current State
     int s = checkState(cTable);
     if(s != 2) {
         Move move;
-        if (s == 1) move.score = 30*(selectedDepth-depth);
-        else if (s == -1) move.score = -30*(selectedDepth-depth);
+        if (s == 1) move.score = 30*(maxAllowedDepth-depth + 1);
+        else if (s == -1) move.score = -30*(maxAllowedDepth-depth + 1);
         else move.score = 0;
         return move;
     }
@@ -211,24 +227,21 @@ Move minimax(int cTurn, int (&cTable)[42], int (&cStackSize)[7], int depth, int 
             move.id = index;
             cTable[index+cStackSize[index]] = cTurn;
             cStackSize[index] += 7;
-            int offset = 0;
-            //if (depth == 0 && i > 4) offset += 1;
-            move.score = minimax(-cTurn, cTable, cStackSize, depth+1+offset, alpha, beta).score;
+            move.score = minimax(-cTurn, cTable, cStackSize, depth+1, alpha, beta).score;
             moves.push_back(move);
             cStackSize[index] -= 7;
-            cTable[index+cStackSize[index]] = 0;
+            cTable[index+cStackSize[index]] = 0;            
+            ++totalNodes;
             // Alpha-Beta Pruning
             if (cTurn == 1) {
                 alpha = max(alpha, move.score);
                 if (beta <= alpha)
-                    break;
+                    return move;
             } else {
                 beta = min(beta, move.score);
                 if (beta <= alpha)
-                    break;
+                    return move;
             }
-            //if (depth == 0) cout << index << " scores " << move.score << endl;
-            ++totalNodes;
         }
     }
     // Minimizes and Maximizes Score
@@ -277,8 +290,8 @@ void game() {
         for (int i = 0; i < 7; ++i) {
             int pDiff = 7 - abs(i - pLMove);
             int cDiff = 7 - abs(i - cLMove);
-            int tVal = distribution[i+stackSize[i]]*5;
-            dist[i] = make_pair(pDiff*3 + cDiff + distribution[i], i);
+            int tVal = distribution[i+stackSize[i]];
+            dist[i] = make_pair(pDiff/3 + cDiff/5 + distribution[i], i);
         }
         sort(dist.begin(), dist.end());
 
@@ -286,18 +299,28 @@ void game() {
 
         cout << "CPU PLAY:" << endl;
         totalNodes = 0;
-        //maxH = -100;
-        //minH = 100;
         start = high_resolution_clock::now();
 
         Move bM;
-        for (int i = 0; i < 42; ++i) {
+        for (int i = 0; i < 42-movesPlayed; ++i) {
             maxAllowedDepth = i;
-            Move m = minimax(turn, table, stackSize, 0, -300, 300);
+            Move m;
+            // Null Window
+            int min = -512;
+            int max = 512;
+            /*while (min < max) {
+                int med = min + (max - min) / 2;
+                if (med <= 0 && min / 2 < med) med = min/2;
+                else if (med >= 0 && max / 2 > med) med = max / 2;
+                m = minimax(turn, table, stackSize, 0, med, med+1);
+                if (m.score <= med) max = m.score;
+                else min = m.score;
+            }*/
+            
+            m = minimax(turn, table, stackSize, 0, min, max);
             if (timeOut) break;
             bM = m;
         }
-
         cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
         if (bM.score > 0) cout << " ";
         cout << (float(bM.score)/10) << endl;
@@ -309,8 +332,10 @@ void game() {
         auto duration = duration_cast<microseconds>(stop - start);
         cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << endl;
         cout << "Nodes Explored: " << totalNodes << endl;
-        //cout << "Max = " << maxH << endl;
-        //cout << "Min = " << minH << endl;
+        cout << minH << endl;
+        cout << maxH << endl;
+        minH = 100;
+        maxH = -100;
         displayGame(table);
         turn = -1;
         ++movesPlayed;
@@ -340,8 +365,6 @@ void game() {
 // Main
 int main() {
     cout << setprecision(2) << fixed;
-    minVal = (-selectedDepth+2)*30;
-    maxVal = (selectedDepth-1)*30;
     cout << "Do you want to start? Type Y to confirm or N to deny" << endl;
     char i;
     cin >> i;
