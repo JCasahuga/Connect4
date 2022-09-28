@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <string.h>
+#include <bit>
 
 using namespace std;
 using namespace std::chrono;
@@ -40,7 +41,7 @@ int maxH = -100;
 int WIDTH = 7;
 int HEIGHT = 6;
 
-vector<pair<uint64_t,int>> transposition = vector<pair<uint64_t,int>>(8388593, make_pair(0b0, 0));
+vector<pair<uint64_t,int>> transposition = vector<pair<uint64_t,int>>(8388593, make_pair(0, 0));
 int randA = 38327;
 int randB = 38327;
 int randC = 38327;
@@ -57,16 +58,6 @@ public:
     int id;
     int score;
 };
-
-// Bottom Board Mask
-static uint64_t bot_mask(int col) {
-    return UINT64_C(1) << col*(HEIGHT+1);
-}
-
-// Bottom Board Mask
-static uint64_t top_mask(int col) {
-    return (UINT64_C(1) << (HEIGHT-1)) << col*(HEIGHT+1);
-}
 
 // Mod Table Size
 unsigned int indexTT(uint64_t key) {
@@ -139,25 +130,25 @@ int countTotalBits(uint64_t pC) {
     int t = 0;
     while (pC != 0) {
         t += ((pC & UINT64_C(1)) == 1);
-        pC >>= 1;
+        pC &= pC - 1;
     }
-    return t;
+    return t*t;
 }
 
 // Evaluates Position
-int heuristicStateB(uint64_t pC, uint64_t pP, int t) {
+int heuristicEval(uint64_t pC, uint64_t pP, int t) {
     //int mult = (1 + (t == 1));
     int total = 0;
     int amount[] = {1, 7, 8, 9};
     for (int i = 0; i < 4; ++i) {
-        total += pow(countTotalBits(pC & (pC >> amount[i]) & (pC >> 2*amount[i]) & (~pP >> 3*amount[i])), 2);
-        total += pow(countTotalBits(~pP & (pC >> amount[i]) & (pC >> 2*amount[i]) & (pC >> 3*amount[i])), 2);
+        total += countTotalBits(pC & (pC >> amount[i]) & (pC >> 2*amount[i]) & (~pP >> 3*amount[i]));
+        total += countTotalBits(~pP & (pC >> amount[i]) & (pC >> 2*amount[i]) & (pC >> 3*amount[i]));
     }
 
     //int mult = (1 + (t == 1));
     for (int i = 0; i < 4; ++i) {
-        total -= pow(countTotalBits(pP & (pP >> amount[i]) & (pP >> 2*amount[i]) & (~pC >> 3*amount[i])), 2);
-        total -= pow(countTotalBits(~pC & (pP >> amount[i]) & (pP >> 2*amount[i]) & (pP >> 3*amount[i])), 2);
+        total -= countTotalBits(pP & (pP >> amount[i]) & (pP >> 2*amount[i]) & (~pC >> 3*amount[i]));
+        total -= countTotalBits(~pC & (pP >> amount[i]) & (pP >> 2*amount[i]) & (pP >> 3*amount[i]));
     }
 
     if (total < minH) minH = total;
@@ -202,7 +193,7 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
     // Depth Limit
     if (depth > maxAllowedDepth) {
         Move move;
-        move.score = heuristicStateB(pC, pP, cTurn);
+        move.score = heuristicEval(pC, pP, cTurn);
         //move.score = 0;
         return move;
     }
@@ -239,6 +230,7 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
             }
         }
     }
+
     // Minimizes and Maximizes Score
     int bMove = -1;
     int totalMoves = moves.size();
@@ -308,7 +300,6 @@ void game() {
             // Window
             int min = -512;
             int max = 512;
-
             m = minimax(turn, bC, bP, stackSize, 0, movesPlayed, min, max);
             if (timeOut) break;
             bM = m;
@@ -318,17 +309,15 @@ void game() {
         if (bM.score > 0) cout << " ";
         cout << (float(bM.score)/10) << endl;
         timeOut = false;
-
         bC |= (UINT64_C(1) << (stackSize[bM.id]+bM.id));
         stackSize[bM.id] += 8;
-
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
         cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << endl;
         cout << "Nodes Explored: " << totalNodes << endl;
-        cout << "Total Transpositions " << hitTT << endl;
-        cout << minH << endl;
-        cout << maxH << endl;
+        cout << "Total Transpositions: " << hitTT << endl;
+        cout << "Max H: " << maxH << endl;
+        cout << "Min H: " << minH << endl;
         minH = 100;
         maxH = -100;
         turn = -1;
