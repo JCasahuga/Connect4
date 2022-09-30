@@ -1,26 +1,21 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
-#include <math.h>
 #include <algorithm>
 #include <iomanip>
 #include <string.h>
-#include <bit>
 
 using namespace std;
 using namespace std::chrono;
 
 // Current Turn and Table Global Variables
 int turn = 1;
-//int table[42] = {};
 // Computer
 uint64_t bC = 0x0;
 // Player
 uint64_t bP = 0x0;
-int stackSize[7] = {};
+uint8_t stackSize[7] = {};
 
-int pLMove = 3;
-int cLMove = 3;
 int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
                         0, 2, 4, 6, 4, 2, 0,
                         0, 3, 6, 8, 6, 3, 0,
@@ -29,26 +24,20 @@ int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
                         0, 1, 2, 4, 2, 1, 0};
 int totalNodes = 0;
 int maxAllowedDepth = 0;
-int movesPlayed = 0;
+uint8_t movesPlayed = 0;
 
 auto start = high_resolution_clock::now();
 int timeOutMicro = 3000000;
 bool timeOut;
 
-int minH = 100;
-int maxH = -100;
+int minH = 128;
+int maxH = -128;
 
-int WIDTH = 7;
-int HEIGHT = 6;
-
-vector<pair<uint64_t,int>> transposition = vector<pair<uint64_t,int>>(8388593, make_pair(0, 0));
-int randA = 38327;
-int randB = 38327;
+vector<pair<uint64_t,int>> transposition = vector<pair<uint64_t,int>>(8388593, make_pair(0b0, 0));
+int randA = 827;
+int randB = 683;
 int randC = 38327;
 int hitTT = 0;
-
-uint64_t pos;
-uint64_t mask;
 
 vector<int> perm = vector<int>(7);
 
@@ -60,12 +49,12 @@ public:
 };
 
 // Mod Table Size
-unsigned int indexTT(uint64_t key) {
+unsigned int indexTT(const uint64_t key) {
     return key%transposition.size();
 }
 
 // Returns Hash Value
-uint64_t hashTT(uint64_t val) {
+uint64_t hashTT(const uint64_t val) {
     uint32_t l = val;
     uint32_t h = val >> 32;
     return l*randA + h*randB + randC;
@@ -77,22 +66,22 @@ void resetTT() {
 }
 
 // Put TT Value
-void putTT(uint64_t key, int val) {
+void putTT(const uint64_t key, const int val) {
     unsigned int i = indexTT(key);
     transposition[i].first = key;
     transposition[i].second = val;
 }
 
 // Get TT Value
-int getTT(uint64_t key) {
+int getTT(const uint64_t key) {
     unsigned int i = indexTT(key);
     if (transposition[i].first == key)
         return transposition[i].second;
-    else return -1001;
+    else return -2049;
 } 
 
 // Display Game Bitboard
-void displayGame(uint64_t tY, uint64_t tR) {
+void displayGame(const uint64_t tY, const uint64_t tR) {
     char tD[48] = {};
     for(int i = 0; i < 48; ++i){
         if (tY & (UINT64_C(1) <<  i)) tD[i] = 'X';
@@ -113,7 +102,7 @@ void displayGame(uint64_t tY, uint64_t tR) {
 }
 
 // Checks If The Board Has a Winning Position
-bool checkState(uint64_t p) {
+bool checkState(const uint64_t p) {
     // Horizontal
     if (p & (p >> 1) & (p >> 2) & (p >> 3)) return true;
     // Vertical
@@ -128,40 +117,61 @@ bool checkState(uint64_t p) {
 // Counts Total Set Bits Board
 int countTotalBits(uint64_t pC) {
     int t = 0;
-    while (pC != 0) {
-        t += ((pC & UINT64_C(1)) == 1);
+    while (pC) {
+        ++t;
         pC &= pC - 1;
     }
-    return t*t;
+    return t;
 }
 
 // Evaluates Position
-int heuristicEval(uint64_t pC, uint64_t pP, int t) {
-    //int mult = (1 + (t == 1));
-    int total = 0;
-    int amount[] = {1, 7, 8, 9};
-    for (int i = 0; i < 4; ++i) {
-        total += countTotalBits(pC & (pC >> amount[i]) & (pC >> 2*amount[i]) & (~pP >> 3*amount[i]));
-        total += countTotalBits(~pP & (pC >> amount[i]) & (pC >> 2*amount[i]) & (pC >> 3*amount[i]));
-    }
+int heuristicEval(const uint64_t pC, const uint64_t pP, const int8_t t) {
+    // Diagonal 1
+    int positive = countTotalBits(pC & (pC >> 6) & (pC >> 12) & (~pP >> 18));
+    positive += countTotalBits(~pP & (pC >> 6) & (pC >> 12) & (pC >> 18));
 
-    //int mult = (1 + (t == 1));
-    for (int i = 0; i < 4; ++i) {
-        total -= countTotalBits(pP & (pP >> amount[i]) & (pP >> 2*amount[i]) & (~pC >> 3*amount[i]));
-        total -= countTotalBits(~pC & (pP >> amount[i]) & (pP >> 2*amount[i]) & (pP >> 3*amount[i]));
-    }
+    int negative = countTotalBits(pP & (pP >> 6) & (pP >> 12) & (~pC >> 18));
+    negative += countTotalBits(~pC & (pP >> 6) & (pP >> 12) & (pP >> 18));
 
-    if (total < minH) minH = total;
-    if (total > maxH) maxH = total;
+    // Diagonal 2
+    positive += countTotalBits(pC & (pC >> 9) & (pC >> 18) & (~pP >> 27));
+    positive += countTotalBits(~pP & (pC >> 9) & (pC >> 18) & (pC >> 27));
 
-    return total;
+    negative += countTotalBits(pP & (pP >> 9) & (pP >> 18) & (~pC >> 27));
+    negative += countTotalBits(~pC & (pP >> 9) & (pP >> 18) & (pP >> 27));
+
+    // Horizontal
+    positive += countTotalBits(pC & (pC >> 1) & (pC >> 2) & (~pP >> 3));
+    positive += countTotalBits(~pP & (pC >> 1) & (pC >> 2) & (pC >> 3));
+
+    negative += countTotalBits(pP & (pP >> 1) & (pP >> 2) & (~pC >> 3));
+    negative += countTotalBits(~pC & (pP >> 1) & (pP >> 2) & (pP >> 3));
+
+    // Vertical
+    positive += countTotalBits(pC & (pC >> 8) & (pC >> 16) & (~pP >> 24)) << (t == 1);
+    negative += countTotalBits(pP & (pP >> 8) & (pP >> 16) & (~pC >> 24)) << (t == -1);
+
+    positive *= positive;
+    negative *= negative;
+
+    positive -= negative;
+
+    positive >>= 2;
+
+    if (positive < minH) minH = positive;
+    if (positive > maxH) maxH = positive;
+
+    if (positive >= 128) return 127;
+    if (positive <= -128) return -127;
+
+    return positive;
 }
 
 // Minimax
-Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int depth, int movesPlayed, int alpha, int beta) {
+Move minimax(const int8_t cTurn, uint64_t pC, uint64_t pP, const uint8_t depth, const uint8_t movesPlayed, int32_t alpha, int32_t beta) {
     Move m;
     // Checks Time Out
-    auto duration = duration_cast<microseconds>(high_resolution_clock::now() - start);;
+    auto duration = duration_cast<microseconds>(high_resolution_clock::now() - start);
     if (duration.count() > timeOutMicro) {
         timeOut = true;
         return m;
@@ -169,7 +179,7 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
 
     // Transposition Table
     int val = getTT(hashTT(pP)^hashTT(pC));
-    if (val != -1001) {
+    if (val != -2049) {
         ++hitTT;
         if (beta > val) {
             beta = val;
@@ -181,11 +191,11 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
     }
 
     // Checks Current State
-    if (cTurn == -1 && checkState(pC)) {
-        m.score = 30*(maxAllowedDepth-depth + 1);
-        return m;
-    } else if (cTurn == 1 && checkState(pP)) {
-        m.score = -30*(maxAllowedDepth-depth + 1);
+    bool wins = false;
+    if (cTurn == 1) wins = checkState(pP);
+    else wins = checkState(pC);
+    if (wins) {
+        m.score = -cTurn*(maxAllowedDepth-depth + 2) << 7;
         return m;
     }
     if (movesPlayed == 42) return m;
@@ -194,28 +204,28 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
     if (depth > maxAllowedDepth) {
         Move move;
         move.score = heuristicEval(pC, pP, cTurn);
-        //move.score = 0;
         return move;
     }
-    // Moves Vector
-    vector<Move> moves = {};
-    // Possible Movesq
+
+    Move bMove;
+    int bScore = -2048;
+    if (cTurn == -1) bScore = 2048;
+    // Possible Moves
     for(int i = 0; i < 7; ++i) {
         int index = perm[i];
-        if(cStackSize[index] <= 40) {
+        if(stackSize[index] <= 40) {
             Move move = Move();
             move.id = index;
 
-            if (cTurn == -1) pP |= (UINT64_C(1) << (cStackSize[index]+index));
-            else pC |= (UINT64_C(1) << (cStackSize[index]+index));
-            cStackSize[index] += 8;
+            if (cTurn == -1) pP |= (UINT64_C(1) << (stackSize[index]+index));
+            else pC |= (UINT64_C(1) << (stackSize[index]+index));
+            stackSize[index] += 8;
 
-            move.score = minimax(-cTurn, pC, pP, cStackSize, depth+1, movesPlayed+1, alpha, beta).score;
-            moves.push_back(move);
+            move.score = minimax(-cTurn, pC, pP, depth+1, movesPlayed+1, alpha, beta).score;
             
-            cStackSize[index] -= 8;
-            if (cTurn == -1) pP &= ~(UINT64_C(1) << (cStackSize[index]+index));
-            else pC &= ~(UINT64_C(1) << (cStackSize[index]+index));
+            stackSize[index] -= 8;
+            if (cTurn == -1) pP &= ~(UINT64_C(1) << (stackSize[index]+index));
+            else pC &= ~(UINT64_C(1) << (stackSize[index]+index));
         
             ++totalNodes;
             // Alpha-Beta Pruning
@@ -223,38 +233,24 @@ Move minimax(int cTurn, uint64_t pC, uint64_t pP, int (&cStackSize)[7], int dept
                 alpha = max(alpha, move.score);
                 if (beta <= alpha)
                     return move;
+                if (bScore < move.score) {
+                    bMove.id = index;
+                    bScore = move.score;
+                }
             } else {
                 beta = min(beta, move.score);
                 if (beta <= alpha)
                     return move;
+                if (bScore > move.score) {
+                    bMove.id = index;
+                    bScore = move.score;
+                }
             }
         }
     }
-
-    // Minimizes and Maximizes Score
-    int bMove = -1;
-    int totalMoves = moves.size();
-    if(cTurn == 1){
-        // Max
-        int bScore = -1000;
-        for(int i = 0; i < totalMoves; ++i) {
-            if (moves[i].score > bScore) {
-                bMove = i;
-                bScore = moves[i].score;
-            }
-        }
-    } else {
-        // Min
-        int bScore = 1000;
-        for(int i = 0; i < totalMoves; ++i) {
-            if (moves[i].score < bScore) {
-                bMove = i;
-                bScore = moves[i].score;
-            }
-        }
-    }
-    putTT(hashTT(pP)^hashTT(pC), moves[bMove].score);
-    return moves[bMove];
+    putTT(hashTT(pP)^hashTT(pC), bScore);
+    bMove.score = bScore;
+    return bMove;
 }
 
 // Keeps Track of Turns and Plays
@@ -279,8 +275,6 @@ void game() {
         // Move Ordering
         vector<pair<int,int>> dist = vector<pair<int,int>> (7);
         for (int i = 0; i < 7; ++i) {
-            int pDiff = 7 - abs(i - pLMove);
-            int cDiff = 7 - abs(i - cLMove);
             int tVal = distribution[i+stackSize[i]];
             dist[i] = make_pair(distribution[i+stackSize[i]], i);
         }
@@ -294,16 +288,16 @@ void game() {
         start = high_resolution_clock::now();
 
         Move bM;
-        for (int i = 0; i < 42-movesPlayed; ++i) {
+        for (uint8_t i = 0; i < 42 - movesPlayed; ++i) {
+            resetTT();
             maxAllowedDepth = i;
             Move m;
             // Window
-            int min = -512;
-            int max = 512;
-            m = minimax(turn, bC, bP, stackSize, 0, movesPlayed, min, max);
+            int min = -2048;
+            int max = 2048;
+            m = minimax(turn, bC, bP, 0, movesPlayed, min, max);
             if (timeOut) break;
             bM = m;
-            resetTT();
         }
         cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
         if (bM.score > 0) cout << " ";
@@ -318,8 +312,8 @@ void game() {
         cout << "Total Transpositions: " << hitTT << endl;
         cout << "Max H: " << maxH << endl;
         cout << "Min H: " << minH << endl;
-        minH = 100;
-        maxH = -100;
+        minH = 128;
+        maxH = -128;
         turn = -1;
         ++movesPlayed;
         game();
@@ -337,7 +331,6 @@ void game() {
             stackSize[m] += 8;
         }
         turn = 1;
-        pLMove = m;
         ++movesPlayed;
         game();
     }
