@@ -1,9 +1,9 @@
-#include <iostream>
-#include <vector>
-#include <chrono>
 #include <algorithm>
+#include <chrono>
+#include <iostream>
 #include <iomanip>
 #include <string.h>
+#include <vector>
 
 using namespace std;
 using namespace std::chrono;
@@ -22,6 +22,7 @@ int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
                         0, 3, 6, 8, 6, 3, 0,
                         0, 2, 4, 6, 4, 2, 0,
                         0, 1, 2, 4, 2, 1, 0};
+
 int totalNodes = 0;
 int maxAllowedDepth = 0;
 uint8_t movesPlayed = 0;
@@ -99,6 +100,7 @@ void displayGame(const uint64_t tY, const uint64_t tR) {
         }
         cout << endl;
     }
+    cout << "0   1   2   3   4   5   6" << endl;
 }
 
 // Checks If The Board Has a Winning Position
@@ -222,7 +224,7 @@ Move minimax(const int8_t cTurn, uint64_t pC, uint64_t pP, const uint8_t depth, 
             stackSize[index] += 8;
 
             move.score = minimax(-cTurn, pC, pP, depth+1, movesPlayed+1, alpha, beta).score;
-            
+
             stackSize[index] -= 8;
             if (cTurn == -1) pP &= ~(UINT64_C(1) << (stackSize[index]+index));
             else pC &= ~(UINT64_C(1) << (stackSize[index]+index));
@@ -299,6 +301,7 @@ void game() {
             if (timeOut) break;
             bM = m;
         }
+        
         cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
         if (bM.score > 0) cout << " ";
         cout << (float(bM.score)/10) << endl;
