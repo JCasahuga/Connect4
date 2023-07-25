@@ -1,3 +1,4 @@
+import copy
 import subprocess
 import ctypes
 import time
@@ -91,12 +92,11 @@ def check_tie(board):
     # Implement the logic to check for a tie in the board
     print("Check Tie")
 
-def play_game(ai1_executable, ai2_executable, time_control):
+def play_game(ai1_executable, ai2_executable, time_control, starting_pos, current_move):
     # Initialize the game board and other necessary variables
-    current_move = 0
     rows = 6
     cols = 7
-    board = [["0" for _ in range(cols)] for _ in range(rows)]
+    board = starting_pos
     current_player = 1
     ai1_process = subprocess.Popen([ai1_executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE, 
         universal_newlines=True,
@@ -162,9 +162,24 @@ def end_process(ai_process):
     ai_process.terminate()
 
 def main():
-    ai1_executable = "./xms1.exe"
-    ai2_executable = "./xms7.exe"
-    num_iterations = 12  # Change this to the desired number of iterations
+    rows = 6
+    cols = 7
+
+    empty_board = [["0" for _ in range(cols)] for _ in range(rows)]
+    starting_boards = []
+    current_move = []
+
+    starting_boards.append(empty_board)
+    current_move.append(0)
+    for col in range(cols):
+        board = [row[:] for row in empty_board]
+        board[5][col] = "1"  # Starting piece for Player 1 (X)
+        starting_boards.append(board)
+        current_move.append(1)
+
+    ai1_executable = "./xms5.exe"
+    ai2_executable = "./xms10.exe"
+    num_iterations = 2 * len(starting_boards)  # Change this to the desired number of iterations
     timeOutMicro = 125000
 
     # Initialize dictionaries to store the statistics for each AI when starting first and second
@@ -173,33 +188,48 @@ def main():
     ai2_stats_first = {"Wins": 0, "Losses": 0, "Draws": 0}
     ai2_stats_second = {"Wins": 0, "Losses": 0, "Draws": 0}
 
-    for iteration in range(num_iterations):
-        time.sleep(1)
-        if iteration % 2 == 0:
-            result = play_game(ai1_executable, ai2_executable, timeOutMicro)
+    total_boards = 0
+    turn = True
+    for total_timecontrols in range(4):
+        for iteration in range(14):
+            time.sleep(1)
+            if turn:
+                aux = copy.deepcopy(starting_boards)
+                aux2 = copy.deepcopy(current_move)
+                result = play_game(ai1_executable, ai2_executable, timeOutMicro, aux[total_boards], aux2[total_boards])
 
-            if result == 1:
-                ai1_stats_first["Wins"] += 1
-                ai2_stats_second["Losses"] += 1
-            elif result == 2:
-                ai2_stats_second["Wins"] += 1
-                ai1_stats_first["Losses"] += 1
+                if result == 1:
+                    ai1_stats_first["Wins"] += 1
+                    ai2_stats_second["Losses"] += 1
+                elif result == 2:
+                    ai2_stats_second["Wins"] += 1
+                    ai1_stats_first["Losses"] += 1
+                else:
+                    ai1_stats_first["Draws"] += 1
+                    ai2_stats_second["Draws"] += 1
             else:
-                ai1_stats_first["Draws"] += 1
-                ai2_stats_second["Draws"] += 1
-        else:
-            result = play_game(ai2_executable, ai1_executable, timeOutMicro)
-            timeOutMicro *= 2
+                aux = copy.deepcopy(starting_boards)
+                aux2 = copy.deepcopy(current_move)
+                result = play_game(ai2_executable, ai1_executable, timeOutMicro, aux[total_boards], aux2[total_boards])
 
-            if result == 1:
-                ai2_stats_first["Wins"] += 1
-                ai1_stats_second["Losses"] += 1
-            elif result == 2:
-                ai1_stats_second["Wins"] += 1
-                ai2_stats_first["Losses"] += 1
-            else:
-                ai2_stats_first["Draws"] += 1
-                ai1_stats_second["Draws"] += 1
+                total_boards += 1
+
+                if result == 1:
+                    ai2_stats_first["Wins"] += 1
+                    ai1_stats_second["Losses"] += 1
+                elif result == 2:
+                    ai1_stats_second["Wins"] += 1
+                    ai2_stats_first["Losses"] += 1
+                else:
+                    ai2_stats_first["Draws"] += 1
+                    ai1_stats_second["Draws"] += 1
+                    
+            
+            if iteration % 2 == 0:
+                turn = not turn
+
+        total_boards = 0
+        timeOutMicro *= 2
 
     print("AI1 Statistics:")
     print("\nNamed " + ai1_executable)

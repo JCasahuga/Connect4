@@ -3,19 +3,17 @@
 #include <iostream>
 #include <iomanip>
 #include <string.h>
+#include <string>
+#include <thread>
+#include <mutex>
 #include <vector>
 
 using namespace std;
 using namespace std::chrono;
 
-// Current Turn and Table Global Variables
-int turn = 1;
-// Computer
-uint64_t bC = 0x0;
-// Player
-uint64_t bP = 0x0;
 uint8_t stackSize[7] = {};
 
+// use distribution in evaluation
 int distribution[42] = {0, 1, 2, 4, 2, 1, 0,
                         1, 2, 4, 6, 4, 2, 1,
                         2, 3, 6, 8, 6, 3, 2,
@@ -29,7 +27,7 @@ int maxAllowedDepth = 0;
 uint8_t movesPlayed = 0;
 
 auto start = high_resolution_clock::now();
-int timeOutMicro = 3000000;
+int timeOutMicro = 5000000;
 bool timeOut;
 
 int minH = 128;
@@ -49,6 +47,27 @@ public:
     int id;
     int score;
 };
+
+void displayGame(const uint64_t tY, const uint64_t tR) {
+    char tD[48] = {};
+    for(int i = 0; i < 48; ++i){
+        if (tY & (UINT64_C(1) <<  i)) tD[i] = 'X';
+        else if (tR & (UINT64_C(1) <<  i)) tD[i] = 'O';
+        else tD[i] = '-';
+    }
+
+    for (int i = 5; i >= 0; --i) {
+        for (int j = 0; j < 8; ++j) {
+            if (j != 7)
+            {
+                cout << tD[i*8+j];
+                if (j != 6) cout << " | ";
+            }
+        }
+        cout << endl;
+    }
+    cout << "0   1   2   3   4   5   6" << endl;
+}
 
 // Mod Table Size
 unsigned int indexTT(const uint64_t key) {
@@ -82,28 +101,6 @@ int getTT(const uint64_t key) {
     else return -2049;
 } 
 
-// Display Game Bitboard
-void displayGame(const uint64_t tY, const uint64_t tR) {
-    char tD[48] = {};
-    for(int i = 0; i < 48; ++i){
-        if (tY & (UINT64_C(1) <<  i)) tD[i] = 'X';
-        else if (tR & (UINT64_C(1) <<  i)) tD[i] = 'O';
-        else tD[i] = '-';
-    }
-
-    for (int i = 5; i >= 0; --i) {
-        for (int j = 0; j < 8; ++j) {
-            if (j != 7)
-            {
-                cout << tD[i*8+j];
-                if (j != 6) cout << " | ";
-            }
-        }
-        cout << endl;
-    }
-    cout << "0   1   2   3   4   5   6" << endl;
-}
-
 // Checks If The Board Has a Winning Position
 bool checkState(const uint64_t p) {
     // Horizontal
@@ -129,7 +126,6 @@ int countTotalBits(uint64_t pC) {
 
 // Evaluates Position
 int heuristicEval(const uint64_t pC, const uint64_t pP, const int8_t t) {
-
 
     // Diagonal 1
     int positive = countTotalBits(pC & (pC >> 6) & (pC >> 12) & (~pP >> 18));
@@ -225,13 +221,14 @@ Move minimax(const int8_t cTurn, uint64_t pC, uint64_t pP, const uint8_t depth, 
     if (movesPlayed == 42) return m;
 
     // Depth Limit
-    if (depth > maxAllowedDepth) {
+    if (depth > maxAllowedDepth + offset_depth) {
         Move move;
         move.score = heuristicEval(pC, pP, cTurn);
         return move;
     }
-
-        if (cTurn == -1) {
+    
+    // Experimental variable depth, reduce/exted search range if position is really bad/good for us
+    if (cTurn == -1) {
         if (depth >= experimentalDepth) {
             Move move;
             move.score = heuristicEval(pC, pP, cTurn);
@@ -292,98 +289,98 @@ Move minimax(const int8_t cTurn, uint64_t pC, uint64_t pP, const uint8_t depth, 
 }
 
 // Keeps Track of Turns and Plays
-void game() {
-    // Checks Current State
-    if (checkState(bC)) {
-        displayGame(bC, bP);
-        cout << "You LOST!" << endl;
-        return;
-    }
-    else if (checkState(bP)) {
-        cout << "You WON!" << endl;
-        return;
-    }
-    else if (movesPlayed == 42) {
-        cout << "TIE!" << endl;
-        return;
+int getMove(int currentMove, uint64_t bC, uint64_t bP) {
+    // Move Ordering
+    perm = {3, 4, 2, 5, 1, 6, 0};
+    for(int i = 0; i < 7; ++i) {
+        if (stackSize[i] > 40) {
+            int elem = perm[0];
+            perm.erase(perm.begin());
+            perm.push_back(elem);
+        }
     }
 
-    // Turn 1 = CPU / Turn -1 = Human
-    if (turn == 1) {
-        // Move Ordering
-        perm = {3, 4, 2, 5, 1, 6, 0};
-        for(int i = 0; i < 7; ++i) {
-            if (stackSize[i] > 40) {
-                auto it = std::find(perm.begin(), perm.end(), i);
-                if (it != perm.end()) {
-                    perm.erase(it);
-                    perm.push_back(i);
-                }
-            }
-        }
+    //cout << "CPU PLAY:" << endl;
+    totalNodes = 0;
+    hitTT = 0;
+    start = high_resolution_clock::now();
 
-        cout << "CPU PLAY:" << endl;
-        totalNodes = 0;
-        hitTT = 0;
-        start = high_resolution_clock::now();
-
-        Move bM;
-        for (uint8_t i = 0; i < 42 - movesPlayed; ++i) {
-            resetTT();
-            maxAllowedDepth = i;
-            Move m;
-            // Window
-            int min = -2048;
-            int max = 2048;
-            m = minimax(turn, bC, bP, 0, movesPlayed, min, max, 0);
-            if (timeOut) break;
-            bM = m;
-        }
-        
-        cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
-        if (bM.score > 0) cout << " ";
-        cout << (float(bM.score)/10) << endl;
-        timeOut = false;
-        bC |= (UINT64_C(1) << (stackSize[bM.id]+bM.id));
-        stackSize[bM.id] += 8;
-        auto stop = high_resolution_clock::now();
-        auto duration = duration_cast<microseconds>(stop - start);
-        cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << endl;
-        cout << "Nodes Explored: " << totalNodes << endl;
-        cout << "Total Transpositions: " << hitTT << endl;
-        cout << "Max H: " << maxH << endl;
-        cout << "Min H: " << minH << endl;
-        minH = 128;
-        maxH = -128;
-        turn = -1;
-        ++movesPlayed;
-        game();
-    } else {
-        cout << "YOUR TURN:" << endl;
-        displayGame(bC, bP);
-        int m;
-        cin >> m;
-        if (m > 6 || m < 0 || stackSize[m] > 40){
-            game();
-            return;
-        }
-        if (!((bC|bP) & (UINT64_C(1) << (stackSize[m]+m)))) {
-            bP |= (UINT64_C(1) << (stackSize[m]+m));
-            stackSize[m] += 8;
-        }
-        turn = 1;
-        ++movesPlayed;
-        game();
+    Move bM;
+    for (uint8_t i = 0; i < 42 - currentMove; ++i) {
+        resetTT();
+        maxAllowedDepth = i;
+        experimentalDepth = i * (0.25f + (maxAllowedDepth / 10) * 0.25f);
+        Move m;
+        // Window
+        int min = -2048;
+        int max = 2048;
+        m = minimax(1, bC, bP, 0, currentMove, min, max, 0);
+        if (timeOut) break;
+        bM = m;
     }
+    
+    cout << "Depth " << maxAllowedDepth << " Best Move: " << bM.id << " ";
+    if (bM.score > 0) cout << " ";
+    cout << (float(bM.score)/10) << endl;
+    timeOut = false;
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << endl;
+    cout << "Nodes Explored: " << totalNodes << endl;
+    cout << "MNodes per Second: " << double(totalNodes) / duration.count() << endl;
+    cout << "Total Transpositions: " << hitTT << endl;
+    cout << "Max H: " << maxH << endl;
+    cout << "Min H: " << minH << endl;
+    minH = 128;
+    maxH = -128;
+    
+    return bM.id;
+}
+
+
+void ReceiveInput() {
+    string currentMove;
+    getline(cin, currentMove);
+
+    int intValue = stoi(currentMove);
+    //cout << currentMove << endl;
+
+    string myPos;
+    getline(cin, myPos);
+    uint64_t uintValueP = stoull(myPos);
+    //cout << uintValueP << endl;
+
+    string opponentPos;
+    getline(cin, opponentPos);
+    uint64_t uintValueO = stoull(opponentPos);
+    //cout << uintValueO << endl;
+
+    for (int i = 0; i < 7; ++i) {
+        string stack;
+        getline(cin, stack);
+        stackSize[i] = stoi(stack);
+    }
+
+    int move = getMove(intValue, uintValueP, uintValueO);
+
+    uintValueP |= (UINT64_C(1) << (stackSize[move]+move));
+    stackSize[move] += 8;
+
+    displayGame(uintValueP, uintValueO);
+
+    cout << move << endl;
+
+    cout << "continue" << endl;
+
 }
 
 // Main
 int main() {
     cout << setprecision(2) << fixed;
-    cout << "Do you want to start? Type Y to confirm or N to deny" << endl;
-    char i;
-    cin >> i;
-    if (i == 'Y' || i == 'y') turn = -1;
-    
-    game();
+    string playTime;
+    getline(cin, playTime);
+    timeOutMicro = stoi(playTime);
+    while (true) {
+        ReceiveInput();
+    }
 }

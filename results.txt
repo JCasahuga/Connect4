@@ -1,0 +1,87 @@
+
+Named ./xms9.exe
+When starting first:
+Wins: 3, Losses: 3, Draws: 1
+When starting second:
+Wins: 3, Losses: 4, Draws: 0
+Elo: -3
+
+AI2 Statistics:
+
+Named ./xms10.exe
+When starting first:
+Wins: 4, Losses: 3, Draws: 0
+When starting second:
+Wins: 3, Losses: 3, Draws: 1
+Elo: 3
+
+
+1 SEC 
+Named ./xms7.exe 
+When starting first:
+Wins: 6, Losses: 1, Draws: 0
+When starting second:
+Wins: 0, Losses: 7, Draws: 0
+Elo: -6
+
+AI2 Statistics:
+
+Named ./xms10.exe
+When starting first:
+Wins: 7, Losses: 0, Draws: 0
+When starting second:
+Wins: 1, Losses: 6, Draws: 0
+Elo: 6
+
+1 SEC
+Named ./xms9.exe
+When starting first:
+Wins: 7, Losses: 0, Draws: 0
+When starting second:
+Wins: 0, Losses: 7, Draws: 0
+Elo: 0
+
+AI2 Statistics:
+
+Named ./xms10.exe
+When starting first:
+Wins: 7, Losses: 0, Draws: 0
+When starting second:
+Wins: 0, Losses: 7, Draws: 0
+Elo: 0
+
+1 SEC
+Named ./xms5.exe
+When starting first:
+Wins: 5, Losses: 2, Draws: 0
+When starting second:
+Wins: 1, Losses: 6, Draws: 0
+Elo: -6
+
+AI2 Statistics:
+
+Named ./xms10.exe
+When starting first:
+Wins: 6, Losses: 1, Draws: 0
+When starting second:
+Wins: 2, Losses: 5, Draws: 0
+Elo: 6
+
+============
+0.125 - 1 S v9 vs v10
+============
+Named ./xms9.exe
+When starting first:
+Wins: 21, Losses: 7, Draws: 0
+When starting second:
+Wins: 3, Losses: 25, Draws: 0
+Elo: -24
+
+AI2 Statistics:
+
+Named ./xms10.exe
+When starting first:
+Wins: 25, Losses: 3, Draws: 0
+When starting second:
+Wins: 7, Losses: 21, Draws: 0
+Elo: 24
