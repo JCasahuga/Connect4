@@ -22,12 +22,12 @@ Move Search::get_best_move(Position& pos, int time_limit_micro) {
     total_nodes = 0;
     hit_tt = 0;
 
-    Move best_move = {-1, -2048};
+    Move best_move = {-1, SCORE_MIN};
     tt.reset();
 
-    for (int i = 1; i <= 42 - pos.movesPlayed; ++i) {
+    for (int i = 1; i <= TOTAL_MOVES - pos.movesPlayed; ++i) {
         max_allowed_depth = i;
-        Move current_move = minimax(pos, 0, -2048, 2048, 1);
+        Move current_move = minimax(pos, 0, SCORE_MIN, SCORE_MAX, 1);
         
         if (time_out) {
             break;
@@ -55,23 +55,22 @@ Move Search::minimax(Position& pos, uint8_t depth, int32_t alpha, int32_t beta, 
         return {-1, 0};
     }
 
-    uint64_t hash_key = TranspositionTable::hash(pos.player_board) ^ TranspositionTable::hash(pos.opponent_board);
-    int tt_val = tt.get(hash_key);
-    if (tt_val != -2049) {
+    uint64_t hash_key = TranspositionTable::hash(pos.player_board) ^ TranspositionTable::hash(pos.opponent_board) ^ (turn * TURN_HASH_CONSTANT);
+    TTEntry tt_entry = tt.get(hash_key);
+    if (tt_entry.depth != 0 && tt_entry.depth >= max_allowed_depth - depth) {
         hit_tt++;
-        if (beta > tt_val) {
-            beta = tt_val;
-            if (alpha >= beta) {
-                return {-1, tt_val};
-            }
+        if (tt_entry.flag == TT_EXACT || 
+            (tt_entry.flag == TT_LOWER && tt_entry.score >= beta) ||
+            (tt_entry.flag == TT_UPPER && tt_entry.score <= alpha)) {
+            return {tt_entry.best_move_id, tt_entry.score};
         }
     }
 
     if (pos.check_win(turn == 1 ? pos.opponent_board : pos.player_board)) {
-        return {-1, -turn * (512 + (depth << 5))};
+        return {-1, -turn * (WIN_SCORE + (depth << 5))};
     }
 
-    if (pos.movesPlayed == 42) {
+    if (pos.movesPlayed == TOTAL_MOVES) {
         return {-1, 0};
     }
 
@@ -79,10 +78,24 @@ Move Search::minimax(Position& pos, uint8_t depth, int32_t alpha, int32_t beta, 
         return {-1, heuristic_eval(pos, turn)};
     }
 
-    Move best_move = {-1, (turn == 1) ? -2048 : 2048};
-    std::vector<int> moves = Position::get_move_order();
+    Move best_move = {-1, (turn == 1) ? SCORE_MIN : SCORE_MAX};
+    std::vector<int> ordered_moves;
+    std::vector<int> all_moves = Position::get_move_order();
 
-    for (int move_id : moves) {
+    // Prioritize the move from the Transposition Table if available and legal
+    int tt_best_move_id = -1;
+    if (tt_entry.best_move_id != -1 && pos.is_legal(tt_entry.best_move_id)) {
+        tt_best_move_id = tt_entry.best_move_id;
+        ordered_moves.push_back(tt_best_move_id);
+    }
+
+    for (int move_id : all_moves) {
+        if (move_id != tt_best_move_id && pos.is_legal(move_id)) {
+            ordered_moves.push_back(move_id);
+        }
+    }
+
+    for (int move_id : ordered_moves) {
         if (pos.is_legal(move_id)) {
             pos.make_move(move_id, turn);
             total_nodes++;
@@ -111,17 +124,18 @@ Move Search::minimax(Position& pos, uint8_t depth, int32_t alpha, int32_t beta, 
         }
     }
 
-    tt.put(hash_key, best_move.score);
+    uint8_t flag = TT_EXACT;
+    if (best_move.score <= alpha) {
+        flag = TT_UPPER;
+    } else if (best_move.score >= beta) {
+        flag = TT_LOWER;
+    }
+    tt.put(hash_key, best_move.score, max_allowed_depth - depth, flag, best_move.id);
     return best_move;
 }
 
 int Search::count_total_bits(uint64_t p) const {
-    int t = 0;
-    while (p) {
-        t++;
-        p &= p - 1;
-    }
-    return t;
+    return __builtin_popcountll(p);
 }
 
 int Search::heuristic_eval(const Position& pos, int8_t turn) {
@@ -180,8 +194,8 @@ int Search::heuristic_eval(const Position& pos, int8_t turn) {
 
     positive -= negative;
 
-    if (positive >= 512) return 511;
-    if (positive <= -512) return -511;
+    if (positive >= WIN_SCORE) return WIN_SCORE -1;
+    if (positive <= -WIN_SCORE) return -WIN_SCORE + 1;
 
     return positive;
 }

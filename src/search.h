@@ -5,6 +5,13 @@
 #include "tt.h"
 #include <chrono>
 
+// Constants for search
+const int SCORE_MIN = -2048;
+const int SCORE_MAX = 2048;
+const int WIN_SCORE = 512;
+const int TOTAL_MOVES = 42;
+const uint64_t TURN_HASH_CONSTANT = 0x123456789ABCDEF0ULL;
+
 struct Move {
     int id;
     int score;

@@ -1,24 +1,31 @@
 #include "tt.h"
 #include <string.h> // For memset
 
-TranspositionTable::TranspositionTable(size_t size) : table(size, {0, 0}) {}
+TranspositionTable::TranspositionTable(size_t size) : table(size, {0, 0, 0, 0, 0}) {}
 
 unsigned int TranspositionTable::index(uint64_t key) const {
     return key % table.size();
 }
 
-void TranspositionTable::put(uint64_t key, int value) {
+void TranspositionTable::put(uint64_t key, int score, uint8_t depth, uint8_t flag, int best_move_id) {
     unsigned int i = index(key);
-    table[i].key = key;
-    table[i].value = value;
+    // Depth-based replacement policy: only replace if new entry has greater depth
+    // or if the key is the same (overwrite with new info)
+    if (table[i].key == key || depth >= table[i].depth) {
+        table[i].key = key;
+        table[i].score = score;
+        table[i].depth = depth;
+        table[i].flag = flag;
+        table[i].best_move_id = best_move_id;
+    }
 }
 
-int TranspositionTable::get(uint64_t key) {
+TTEntry TranspositionTable::get(uint64_t key) {
     unsigned int i = index(key);
     if (table[i].key == key) {
-        return table[i].value;
+        return table[i];
     }
-    return -2049; // Special value indicating not found
+    return {0, 0, 0, 0, 0}; // Return a default-constructed TTEntry indicating not found
 }
 
 void TranspositionTable::reset() {
