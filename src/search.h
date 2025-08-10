@@ -13,7 +13,7 @@ struct Move {
 class Search {
 public:
     Search();
-    Move get_best_move(Position& pos, int time_limit_ms);
+    Move get_best_move(Position& pos, int time_limit_micro);
 
 private:
     TranspositionTable tt;
@@ -24,7 +24,7 @@ private:
     long total_nodes;
     long hit_tt;
 
-    Move minimax(Position pos, uint8_t depth, int32_t alpha, int32_t beta, int8_t turn);
+    Move minimax(Position& pos, uint8_t depth, int32_t alpha, int32_t beta, int8_t turn);
     int heuristic_eval(const Position& pos, int8_t turn);
     int count_total_bits(uint64_t p) const;
 };

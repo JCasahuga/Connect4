@@ -19,6 +19,17 @@ void Position::make_move(int column, int8_t turn) {
     movesPlayed++;
 }
 
+void Position::undo_move(int column, int8_t turn) {
+    movesPlayed--;
+    stackSize[column] -= 8;
+    uint64_t move = (UINT64_C(1) << (stackSize[column] + column));
+    if (turn == 1) {
+        player_board &= ~move;
+    } else {
+        opponent_board &= ~move;
+    }
+}
+
 bool Position::is_legal(int column) const {
     return stackSize[column] <= 40; // 5 rows * 8 bits per row
 }

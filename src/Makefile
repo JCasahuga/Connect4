@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -std=c++11 -O3
+CXXFLAGS = -Wall -std=c++11 -O3 -mavx2
 
 TARGET = xms_latest
 SRCS = main.cpp position.cpp tt.cpp search.cpp

@@ -15,20 +15,20 @@ namespace {
 
 Search::Search() : time_out(false), max_allowed_depth(0), total_nodes(0), hit_tt(0) {}
 
-Move Search::get_best_move(Position& pos, int time_limit_ms) {
+Move Search::get_best_move(Position& pos, int time_limit_micro) {
     start_time = std::chrono::high_resolution_clock::now();
-    time_limit_micro = time_limit_ms * 1000;
+    this->time_limit_micro = time_limit_micro;
     time_out = false;
     total_nodes = 0;
     hit_tt = 0;
 
     Move best_move = {-1, -2048};
+    tt.reset();
 
     for (int i = 1; i <= 42 - pos.movesPlayed; ++i) {
         max_allowed_depth = i;
-        tt.reset();
         Move current_move = minimax(pos, 0, -2048, 2048, 1);
-
+        
         if (time_out) {
             break;
         }
@@ -37,17 +37,18 @@ Move Search::get_best_move(Position& pos, int time_limit_ms) {
 
     auto stop_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
-
-    std::cout << "Depth " << max_allowed_depth << " Best Move: " << best_move.id << " Score: " << std::fixed << std::setprecision(2) << (float(best_move.score) / 10) << std::endl;
+    
+    std::cout << "Depth " << max_allowed_depth << " Best Move: " << best_move.id 
+              << " Score: " << std::fixed << std::setprecision(2) << (float(best_move.score) / 10) << std::endl;
     std::cout << "Time Elapsed: " << duration.count() / 1000 << " Miliseconds" << std::endl;
     std::cout << "Nodes Explored: " << total_nodes << std::endl;
     std::cout << "MNodes per Second: " << double(total_nodes) / duration.count() << std::endl;
     std::cout << "Total Transpositions: " << hit_tt << std::endl;
-
+    
     return best_move;
 }
 
-Move Search::minimax(Position pos, uint8_t depth, int32_t alpha, int32_t beta, int8_t turn) {
+Move Search::minimax(Position& pos, uint8_t depth, int32_t alpha, int32_t beta, int8_t turn) {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start_time);
     if (duration.count() > time_limit_micro) {
         time_out = true;
@@ -83,11 +84,12 @@ Move Search::minimax(Position pos, uint8_t depth, int32_t alpha, int32_t beta, i
 
     for (int move_id : moves) {
         if (pos.is_legal(move_id)) {
-            Position next_pos = pos;
-            next_pos.make_move(move_id, turn);
+            pos.make_move(move_id, turn);
             total_nodes++;
 
-            Move current_move = minimax(next_pos, depth + 1, alpha, beta, -turn);
+            Move current_move = minimax(pos, depth + 1, alpha, beta, -turn);
+
+            pos.undo_move(move_id, turn);
 
             if (turn == 1) { // Maximizing player
                 if (current_move.score > best_move.score) {

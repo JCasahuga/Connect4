@@ -14,6 +14,7 @@ public:
     Position();
 
     void make_move(int column, int8_t turn);
+    void undo_move(int column, int8_t turn);
     bool is_legal(int column) const;
     bool check_win(uint64_t board) const;
     void display() const;
