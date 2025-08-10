@@ -177,8 +177,8 @@ def main():
         starting_boards.append(board)
         current_move.append(1)
 
-    ai1_executable = "./xms5.exe"
-    ai2_executable = "./xms10.exe"
+    ai1_executable = "../xms"
+    ai2_executable = "../src/xms_latest"
     num_iterations = 2 * len(starting_boards)  # Change this to the desired number of iterations
     timeOutMicro = 125000
 
